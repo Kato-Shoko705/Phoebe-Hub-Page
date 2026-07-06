@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Phoebe Hub - 全球最可爱的菲比表情包收集站</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌟</text></svg>" />
+    <link rel="stylesheet" href="css/style.css" />
+    <style>
+        /* ===== 上传区域 - 预览图覆盖摄像头位置 ===== */
+        .file-upload {
+            position: relative;
+            width: 100%;
+            min-height: 180px;
+            border: 2px dashed #ddd;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            overflow: hidden;
+            transition: border-color 0.3s ease, background 0.3s ease;
+            background: rgba(255,255,255,0.7);
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: rgba(183,148,246,0.2);
+            touch-action: manipulation;
+            -webkit-touch-callout: none;
+            user-select: none;
+        }
+        .file-upload:hover {
+            border-color: var(--primary-light);
+            background: rgba(183,148,246,0.08);
+        }
+        .file-upload.dragover {
+            border-color: var(--primary-light);
+            background: rgba(183,148,246,0.12);
+        }
+        /* 占位内容（摄像头+文字） */
+        .file-upload-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            padding: 20px 10px;
+            box-sizing: border-box;
+            pointer-events: none;
+            /* 让点击穿透到 input */;
+        }
+        .file-upload-placeholder .file-upload-icon {
+            font-size: 48px;
+            margin-bottom: 8px;
+        }
+        .file-upload-placeholder .file-upload-text {
+            font-size: 14px;
+            color: #999;
+            text-align: center;
+            line-height: 1.5;
+        }
+        .file-upload-placeholder .file-upload-text span {
+            font-size: 12px;
+            color: #bbb;
+        }
+        /* 预览图 - 覆盖整个上传区域 */
+        .file-upload .preview-image {
+            display: none;
+            /* 默认隐藏 */
+            width: 100%;
+            height: 100%;
+            min-height: 180px;
+            object-fit: contain;
+            position: absolute;
+            top: 0;
+            left: 0;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.7);
+            padding: 8px;
+            box-sizing: border-box;
+            pointer-events: none;
+        }
+        .file-upload .preview-image.show {
+            display: block;
+        }
+        /* 有图片时，隐藏占位 */
+        .file-upload.has-image .file-upload-placeholder {
+            display: none;
+        }
+        /* 重新上传提示（悬浮在预览图上） */
+        .file-upload .reupload-hint {
+            display: none;
+            position: absolute;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            pointer-events: none;
+            white-space: nowrap;
+            backdrop-filter: blur(4px);
+            z-index: 2;
+        }
+        .file-upload.has-image:hover .reupload-hint {
+            display: block;
+        }
+        /* 隐藏原生 input，但保留可点击 */
+        .file-upload input[type="file"] {
+            display: none;
+        }
+        /* 小屏适配 */
+        @media (max-width: 600px) {
+            .file-upload {
+                min-height: 140px;
+            }
+            .file-upload .preview-image {
+                min-height: 140px;
+            }
+            .file-upload-placeholder .file-upload-icon {
+                font-size: 36px;
+            }
+            .file-upload-placeholder .file-upload-text {
+                font-size: 12px;
+            }
+        }
+
+        /* 批量上传区域 */
+        .batch-upload-area {
+            border: 2px dashed var(--primary-light);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: rgba(255,255,255,0.7);
+        }
+        .batch-upload-area:hover {
+            border-color: var(--primary);
+            background: rgba(183,148,246,0.08);
+        }
+        .batch-upload-area input[type="file"] {
+            display: none;
+        }
+
+        /* 上传分类多选框 */
+        .category-checkboxes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .category-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border: 2px solid rgba(183,148,246,0.2);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: rgba(255,255,255,0.7);
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+        .category-checkbox:hover {
+            border-color: var(--primary);
+            background: rgba(183,148,246,0.08);
+        }
+        .category-checkbox input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+        .category-checkbox:has(input:checked) {
+            border-color: var(--primary);
+            background: rgba(183,148,246,0.15);
+            color: var(--primary);
+        }
+
+        /* 去重提示 */
+        .dedup-notice {
+            margin: -5px 0 15px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            background: rgba(255, 193, 7, 0.12);
+            border: 1px solid rgba(255, 193, 7, 0.3);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .dedup-notice.warning {
+            background: rgba(255, 152, 0, 0.12);
+            border-color: rgba(255, 152, 0, 0.3);
+        }
+        .dedup-notice.danger {
+            background: rgba(244, 67, 54, 0.1);
+            border-color: rgba(244, 67, 54, 0.25);
+        }
+        .dedup-notice a {
+            color: var(--primary);
+            text-decoration: underline;
+            cursor: pointer;
+            font-weight: 700;
+        }
+        .dedup-notice .dedup-title {
+            font-weight: 800;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* 审核项分类选择器 */
+        .review-category {
+            margin-top: 6px;
+            padding: 4px 8px;
+            border: 1px solid rgba(183,148,246,0.25);
+            border-radius: 8px;
+            font-size: 12px;
+            background: rgba(255,255,255,0.8);
+            color: var(--text-dark);
+            cursor: pointer;
+            outline: none;
+        }
+        .review-category:focus {
+            border-color: var(--primary);
+        }
+
+        /* 已发布批量管理 */
+        .bulk-manage-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(183,148,246,0.15);
+        }
+        .bulk-manage-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 12px;
+            max-height: 60vh;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+        .bulk-manage-item {
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+        .bulk-manage-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 18px rgba(159,122,234,0.15);
+        }
+        .bulk-manage-item.selected {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(183,148,246,0.2);
+        }
+        .bulk-manage-item img {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+            display: block;
+        }
+        .bulk-manage-item .manage-checkbox {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            z-index: 2;
+        }
+        .bulk-manage-item .manage-title {
+            padding: 6px 8px;
+            font-size: 11px;
+            color: var(--text-dark);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            background: rgba(255,255,255,0.9);
+        }
+        @media (max-width: 600px) {
+            .bulk-manage-list {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            .bulk-manage-actions {
+                gap: 6px;
+            }
+            .bulk-manage-actions .review-btn {
+                padding: 5px 10px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 粒子背景 -->
+    <div class="particles" id="particles"></div>
+
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="#" class="logo">
+                <img src="images/top.png" alt="Phoebe" class="logo-icon" />
+                <span>Phoebe Hub</span>
+            </a>
+            <ul class="nav-menu">
+                <li><a href="#featured" class="active" onclick="switchTab('featured', this)"><span>精选菲比</span></a></li>
+                <li><a href="#all" onclick="switchTab('all', this)"><span>全部菲比</span></a></li>
+                <li><a href="#recommended" onclick="switchTab('recommended', this)"><span>站长推荐</span></a></li>
+                <li><a href="#add" onclick="showAddModal()"><span>添加菲比</span></a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- 搜索区域 -->
+    <section class="hero-section">
+        <h1 class="hero-title">发现最可爱的菲比</h1>
+        <p class="hero-subtitle">全球最可爱的鸣潮角色菲比表情包收集站</p>
+        <h2 class="hero-subtitle">联系站长：qq:2491185992<br>欢迎加Q群：479656947</h2>
+        <div class="search-container">
+            <input type="text" class="search-box" id="searchInput" placeholder="搜索可爱的菲比表情包..." oninput="handleSearch()" />
+            <button class="search-btn">🔍</button>
+        </div>
+    </section>
+
+    <!-- 主内容 -->
+    <div class="main-container">
+        <!-- 左侧热门 -->
+        <aside class="sidebar-left">
+            <div class="hot-section">
+                <h3 class="section-title">🔥 热门菲比</h3>
+                <div class="hot-list" id="hotList">
+                    <!-- 动态生成 -->
+                </div>
+            </div>
+        </aside>
+
+        <!-- 中间内容 -->
+        <main class="content-main">
+
+            <!-- 分类标签 -->
+            <div class="category-tabs">
+                <button class="tab-btn active" onclick="filterCategory('all', this)"><span>全部</span></button>
+                <button class="tab-btn" onclick="filterCategory('cute', this)"><span>超可爱</span></button>
+                <button class="tab-btn" onclick="filterCategory('ai', this)"><span>AI创作</span></button>
+                <button class="tab-btn" onclick="filterCategory('static', this)"><span>静态图</span></button>
+                <button class="tab-btn" onclick="filterCategory('gif', this)"><span>动态图</span></button>
+            </div>
+
+            <!-- 排序栏 -->
+            <div class="sort-bar">
+                <div class="result-count">共找到 <span id="resultCount">0</span> 个菲比</div>
+                <div class="sort-options">
+                    <button class="sort-btn bulk-download-entry" onclick="toggleBulkMode()" title="批量下载">批量下载</button>
+                    <button class="sort-btn active" onclick="sortMemes('newest', this)">最新</button>
+                    <button class="sort-btn" onclick="sortMemes('hottest', this)">最热</button>
+                    <button class="sort-btn" onclick="sortMemes('random', this)">随机</button>
+                </div>
+            </div>
+
+            <!-- 表情包网格 -->
+            <div class="meme-grid" id="memeGrid">
+                <!-- 动态生成 -->
+            </div>
+
+            <!-- 批量下载浮动工具栏 -->
+            <div class="bulk-toolbar" id="bulkToolbar" style="display: none;">
+                <label class="bulk-select-all">
+                    <input type="checkbox" id="bulkSelectAll" onchange="selectAllBulk(this)">
+                    <span>全选</span>
+                </label>
+                <div class="bulk-count">已选 <span id="bulkCount">0</span> 个</div>
+                <div class="bulk-actions">
+                    <button class="bulk-download-btn" onclick="downloadBulkZip()">
+                        下载选中
+                    </button>
+                    <button class="bulk-cancel-btn" onclick="toggleBulkMode()">
+                        取消
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <!-- 右侧菲比信息 -->
+        <aside class="sidebar-right">
+            <div class="wuthering-section">
+                <h3 class="section-title">✨ 关于菲比</h3>
+                <div class="phoebe-info" style="text-align: center; padding: 10px 0;">
+                    <img src="images/top.png" alt="菲比" id="phoebeAvatar" onerror="this.src='https://via.placeholder.com/150x150/7B6BC6/FFFFFF?text=菲比'" />
+                    <div style="font-size: 20px; font-weight: 800; color: var(--text-dark); margin-bottom: 5px;">菲比</div>
+                    <div style="font-size: 14px; color: var(--primary); font-weight: 700; margin-bottom: 10px;">教士 / 共鸣者</div>
+                    <p style="font-size: 13px; color: var(--text-light); line-height: 1.6; text-align: left; font-weight: 600;">
+                        菲比是《鸣潮》中的可爱角色，性格温和、虔诚稳重。她的大饼脸表情包已经统治了整个游戏圈！
+                    </p>
+                </div>
+                <div class="character-grid" id="characterGrid" style="display: none;">
+                    <!-- 动态生成 -->
+                </div>
+                <button class="add-btn" onclick="showAddModal()">
+                    <span>+</span>
+                    <span>添加新菲比</span>
+                </button>
+            </div>
+        </aside>
+    </div>
+
+    <!-- 图片查看器 -->
+    <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+        <span class="lightbox-close">&times;</span>
+        <img src="" alt="菲比表情包" id="lightboxImg" />
+    </div>
+
+    <!-- 公告弹窗 -->
+    <div class="modal-overlay" id="noticeModal" onclick="if(event.target === this) closeNoticeModal()">
+        <div class="modal-content notice-content">
+            <button class="modal-close" onclick="closeNoticeModal()">&times;</button>
+            <div class="notice-body">
+                <div class="notice-image">⭐</div>
+                <h2 class="notice-title">菲比啾比 ~ 求 Star！</h2>
+                <p class="notice-text">如果你喜欢这个网站，欢迎去 GitHub 给 Phoebe-Hub 点一个 Star，让更多人发现可爱的菲比表情包！</p>
+                <div class="notice-actions">
+                    <a href="https://github.com/Kato-Shoko705/Phoebe-Hub" target="_blank" class="notice-link">
+                        <svg class="github-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                        去 GitHub 点 Star
+                    </a>
+                    <button type="button" class="notice-starred-btn" onclick="markNoticeStarred()">我已点星</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 投稿指引模态框 -->
+    <div class="modal-overlay" id="uploadModal" onclick="if(event.target === this) closeUploadModal()">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeUploadModal()">&times;</button>
+            <div class="modal-header">
+                <h2>添加新菲比</h2>
+            </div>
+            <div class="contribute-guide" style="line-height: 1.8; color: var(--text-dark);">
+                <p style="margin-bottom: 16px;">
+                    本站已切换为纯静态部署，不再提供网页直传。如果你想添加新的菲比表情包，可以通过以下两种方式投稿，站长审核通过后会合并上线。
+                </p>
+
+                <h3 style="font-size: 16px; margin: 18px 0 10px; color: var(--primary);">📌 投稿方式一：查看哔哩哔哩主页置顶</h3>
+                <ol style="padding-left: 20px; margin-bottom: 16px;">
+                    <li>主播已发布教学视频，上传数据的时候记得<b>先同步一下仓库</b></li>
+                    <li>视频地址：<a href="https://www.bilibili.com/video/BV1Zp7s6LEJz?vd_source=4eaf7f1afed3ea1a01d6ba81c97b7300" target="_blank" style="color: var(--primary); text-decoration: underline; font-weight: 700;">点击前往</a></li>
+                    <li>访问站长的哔哩哔哩主页：<a href="https://space.bilibili.com/1567654329?spm_id_from=333.1007.0.0" target="_blank" style="color: var(--primary); text-decoration: underline; font-weight: 700;">点击前往</a></li>
+                    <li>查看主页<strong>置顶动态</strong>，获取最新投稿方式和要求</li>
+                </ol>
+
+                <h3 style="font-size: 16px; margin: 18px 0 10px; color: var(--primary);">📌 投稿方式二：加入 QQ 群</h3>
+                <ol style="padding-left: 20px; margin-bottom: 16px;">
+                    <li>在本站顶部搜索框输入 <strong>QQ群</strong>，搜索群聊二维码图片</li>
+                    <li>扫码加入 QQ 群后，按群公告要求投稿菲比表情包</li>
+                    <li>也可以直接加站长 QQ：2491185992，由站长代为添加</li>
+                </ol>
+
+                <h3 style="font-size: 16px; margin: 18px 0 10px; color: var(--primary);">📝 图片命名建议</h3>
+                <ul style="padding-left: 20px; margin-bottom: 16px;">
+                    <li>使用中文或英文，建议描述图片内容，例如 <code>开心菲比.webp</code></li>
+                    <li>支持格式：JPG、PNG、GIF、WebP(建议使用webp格式，因为内存小)</li>
+                    <li>建议单张不超过 2MB，过大会拖慢加载</li>
+                    <li>避免和已有图片重名，文件名不要以连续英文句号开头</li>
+                </ul>
+
+                <div style="background: rgba(183,148,246,0.1); border-radius: 12px; padding: 14px; margin: 16px 0; font-size: 13px;">
+                    <strong>提示：</strong>如果你是技术玩家，也可以 Fork GitHub 仓库后提交 Pull Request，站长审核合并后网站会自动更新。
+                </div>
+
+                <a href="https://github.com/Kato-Shoko705/Phoebe-Hub/fork" target="_blank" class="submit-btn" style="display: inline-block; text-align: center; text-decoration: none; width: 100%; box-sizing: border-box;">前往 GitHub Fork 仓库</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 管理员面板（快捷键 Ctrl+Shift+A 开启） -->
+    <div id="adminPanel" class="admin-panel">
+        <div class="admin-toolbar">
+            <span style="font-weight:800;color:#9F7AEA;">🔐 管理员模式</span>
+            <span style="font-size:13px;color:#999;" id="adminChangeCount">已修改 0 项</span>
+            <button class="review-btn" onclick="downloadAdminJson()">📥 下载 memes.json</button>
+            <button class="review-btn" style="background:#999;" onclick="toggleAdminMode()">退出管理</button>
+        </div>
+        <div class="admin-floating-info" id="adminToast" style="display:none;">
+            修改已记录，点击「下载 memes.json」导出后替换仓库文件
+        </div>
+        <div class="admin-meme-list" id="adminMemeList"></div>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-logo">Phoebe Hub</div>
+            <p class="footer-desc">
+                世界上最大(？)的菲比表情包分享平台<br />
+                致力于传播可爱的菲比表情包，让全世界感受菲比的萌力！
+            </p>
+            <div class="footer-links">
+                <a href="#">关于我们</a>
+                <a href="#">使用条款</a>
+                <a href="#">隐私政策</a>
+                <a href="#">帮助中心</a>
+            </div>
+            <div class="footer-contact">
+                <p>联系我们</p>
+                <p>邮箱: <a href="mailto:phoebe@phoebehub.top">phoebe@phoebehub.top</a> (假的)</p>
+                <p>电话: +PB phoebe-phoebe-hub (当然也是假的)</p>
+            </div>
+            <div class="footer-bottom">
+                <p>© 2077 Phoebe Hub. 并不保留所有权利。</p>
+                <p style="margin-top: 10px; font-size: 12px;">本网站为粉丝创作，与库洛游戏无关 | 所有表情包版权归原作者</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- 菲比装饰 -->
+    <div class="phoebe-decoration" onclick="scrollToTop()" title="回到顶部">
+        <img src="images/top.png" alt="菲比" onerror="this.src='https://via.placeholder.com/200x200/7B6BC6/FFFFFF?text=菲比'" />
+    </div>
+
+    <script src="js/jszip.min.js"></script>
+    <script src="js/main.js"></script>
+
+</body>
+</html>
