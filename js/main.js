@@ -3,8 +3,8 @@
 
 const DATA_REPO_BRANCH = 'main';
 const DATA_REPO_FALLBACK_BASES = [
-    `https://cdn.jsdelivr.net/gh/Kato-Shoko705/Phoebe-Hub@${DATA_REPO_BRANCH}`,
     'https://kato-shoko705.github.io/Phoebe-Hub',
+    `https://cdn.jsdelivr.net/gh/Kato-Shoko705/Phoebe-Hub@${DATA_REPO_BRANCH}`,
     `https://raw.githubusercontent.com/Kato-Shoko705/Phoebe-Hub/${DATA_REPO_BRANCH}`
 ];
 const MEMES_JSON_PATH = 'data/memes.json';
