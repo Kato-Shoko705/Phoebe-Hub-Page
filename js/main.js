@@ -1,13 +1,82 @@
 // Phoebe Hub - 纯静态版本
 // 数据来源：data/memes.json + images/ 文件夹
 
-const DATA_REPO_BASE = 'https://kato-shoko705.github.io/Phoebe-Hub';
-const MEMES_JSON_URL = `${DATA_REPO_BASE}/data/memes.json`;
+const DATA_REPO_BRANCH = 'main';
+const DATA_REPO_FALLBACK_BASES = [
+    `https://cdn.jsdelivr.net/gh/Kato-Shoko705/Phoebe-Hub@${DATA_REPO_BRANCH}`,
+    'https://kato-shoko705.github.io/Phoebe-Hub',
+    `https://raw.githubusercontent.com/Kato-Shoko705/Phoebe-Hub/${DATA_REPO_BRANCH}`
+];
+const MEMES_JSON_PATH = 'data/memes.json';
+const MEMES_JSON_URL = `${DATA_REPO_FALLBACK_BASES[0]}/${MEMES_JSON_PATH}`;
+
+function normalizeRepoPath(path) {
+    return String(path || '').replace(/^\/+/, '');
+}
+
+function buildRepoAssetUrls(url) {
+    if (!url) return [];
+    if (/^https?:\/\//i.test(url)) return [url];
+
+    const normalizedPath = normalizeRepoPath(url);
+    return DATA_REPO_FALLBACK_BASES.map(base => `${base}/${normalizedPath}`);
+}
 
 function resolveMemeUrl(url) {
-    if (!url) return '';
-    if (/^https?:\/\//i.test(url)) return url;
-    return `${DATA_REPO_BASE}/${url.replace(/^\/+/, '')}`;
+    return buildRepoAssetUrls(url)[0] || '';
+}
+
+function getMemeAssetUrls(meme) {
+    if (!meme) return [];
+    const urls = [meme.url, ...(meme.fallbackUrls || [])].filter(Boolean);
+    return [...new Set(urls)];
+}
+
+async function fetchWithFallback(urls, options = {}) {
+    let lastError = null;
+
+    for (const url of urls) {
+        try {
+            const response = await fetch(url, options);
+            if (response.ok) {
+                return { response, url };
+            }
+            lastError = new Error(`Request failed: ${response.status} ${response.statusText}`);
+        } catch (error) {
+            lastError = error;
+        }
+    }
+
+    throw lastError || new Error('All asset requests failed');
+}
+
+function decodeFallbackUrls(value) {
+    if (!value) return [];
+    try {
+        return JSON.parse(decodeURIComponent(value));
+    } catch (error) {
+        console.warn('Failed to parse fallback asset URLs:', error);
+        return [];
+    }
+}
+
+function encodeFallbackUrls(urls) {
+    return encodeURIComponent(JSON.stringify(urls || []));
+}
+
+function handleImageLoadError(img) {
+    const fallbackUrls = decodeFallbackUrls(img.dataset.fallbacks);
+    const nextUrl = fallbackUrls.shift();
+
+    if (nextUrl) {
+        img.dataset.fallbacks = encodeFallbackUrls(fallbackUrls);
+        img.dataset.full = nextUrl;
+        img.src = nextUrl;
+        return;
+    }
+
+    img.onerror = null;
+    img.src = `https://via.placeholder.com/300x300/B794F6/FFFFFF?text=${encodeURIComponent(img.alt || '菲比')}`;
 }
 
 let memesData = [];
