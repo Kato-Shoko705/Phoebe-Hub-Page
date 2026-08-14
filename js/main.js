@@ -79,6 +79,58 @@ function handleImageLoadError(img) {
     img.src = `https://via.placeholder.com/300x300/B794F6/FFFFFF?text=${encodeURIComponent(img.alt || '菲比')}`;
 }
 
+function getMemeAssetUrls(meme) {
+    if (!meme || !meme.url) return [];
+    return buildRepoAssetUrls(meme.url);
+}
+
+async function fetchWithFallback(urls, options = {}) {
+    let lastError = null;
+    for (const url of urls) {
+        try {
+            const response = await fetch(url, options);
+            if (response.ok) return { response, url };
+            lastError = new Error(`HTTP ${response.status}`);
+        } catch (error) {
+            lastError = error;
+        }
+    }
+    throw lastError || new Error('fetch failed');
+}
+
+async function fetchBlobWithRetry(urls, retries = 1) {
+    let lastError = null;
+    for (const url of urls) {
+        for (let attempt = 0; attempt <= retries; attempt++) {
+            try {
+                const response = await fetch(url, {
+                    cache: 'no-cache'
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return { response, url };
+            } catch (error) {
+                lastError = error;
+                if (attempt < retries) {
+                    await new Promise(resolve => setTimeout(resolve, 180 * (attempt + 1)));
+                }
+            }
+        }
+    }
+    throw lastError || new Error('fetch failed');
+}
+
+async function mapWithConcurrency(items, limit, worker) {
+    const queue = [...items];
+    const runners = Array.from({ length: Math.min(limit, queue.length) }, async () => {
+        while (queue.length) {
+            const item = queue.shift();
+            if (item === undefined) continue;
+            await worker(item);
+        }
+    });
+    await Promise.all(runners);
+}
+
 let memesData = [];
 let currentCategory = 'all';
 let currentSort = 'newest';
@@ -121,10 +173,9 @@ document.addEventListener('DOMContentLoaded', () => {
 // 加载本地静态数据
 async function loadData() {
     try {
-        const response = await fetch(MEMES_JSON_URL, {
-            cache: 'no-store'
+        const { response } = await fetchWithFallback(buildRepoAssetUrls(MEMES_JSON_PATH), {
+            cache: 'no-cache'
         });
-        if (!response.ok) throw new Error('加载数据失败');
         const data = await response.json();
         memesData = (data.memes || []).map((m, idx) => ({
             id: m.id || idx + 1,
@@ -333,7 +384,7 @@ function renderMemes() {
     if (resultCount) resultCount.textContent = filtered.length;
 
     // 渲染
-    if (filtered.length === 0) {
+        if (filtered.length === 0) {
         grid.innerHTML = `
             <div class="empty-state" style="grid-column: 1/-1;">
                 <div class="icon">📝</div>
@@ -347,6 +398,7 @@ function renderMemes() {
     grid.innerHTML = filtered.map(meme => {
         const optimizedUrl = getOptimizedUrl(meme.url);
         const fullUrl = meme.url;
+        const fallbackAttr = encodeFallbackUrls(buildRepoAssetUrls(meme.url).slice(1));
         const safeTitle = escapeHtml(meme.title || '未命名');
         const isSelected = bulkSelectedIds.has(meme.id);
         const checkboxHtml = bulkModeOpen ? `
@@ -359,8 +411,8 @@ function renderMemes() {
         return `
         <div class="meme-card ${bulkModeOpen ? 'bulk-mode' : ''} ${isSelected ? 'bulk-selected' : ''}" data-id="${meme.id}">
             ${checkboxHtml}
-            <img data-src="${optimizedUrl}" data-full="${fullUrl}" alt="${safeTitle}" class="meme-image ${meme.isGif ? 'gif-image' : ''} lazy" loading="lazy"
-                onerror="this.src='https://via.placeholder.com/300x300/B794F6/FFFFFF?text=${encodeURIComponent(meme.title || '菲比')}'"
+            <img data-src="${optimizedUrl}" data-full="${fullUrl}" data-fallbacks="${fallbackAttr}" alt="${safeTitle}" class="meme-image ${meme.isGif ? 'gif-image' : ''} lazy" loading="lazy"
+                onerror="handleImageLoadError(this)"
                 onclick="handleMemeClick(event, '${fullUrl}', ${meme.id})"
                 onload="this.classList.add('loaded')">
             <div class="meme-info">
@@ -462,8 +514,7 @@ async function downloadMeme(id) {
 
     try {
         showToast('正在下载...');
-        const response = await fetch(meme.url);
-        if (!response.ok) throw new Error('下载失败');
+        const { response } = await fetchBlobWithRetry(getMemeAssetUrls(meme), 1);
 
         const blob = await response.blob();
         const blobUrl = window.URL.createObjectURL(blob);
@@ -481,7 +532,7 @@ async function downloadMeme(id) {
     } catch (e) {
         console.error('下载失败:', e);
         const link = document.createElement('a');
-        link.href = meme.url;
+        link.href = getMemeAssetUrls(meme)[0] || meme.url;
         link.target = '_blank';
         document.body.appendChild(link);
         link.click();
@@ -491,6 +542,7 @@ async function downloadMeme(id) {
 
 // ===== 批量下载 =====
 function toggleBulkMode() {
+    const scrollTop = window.scrollY;
     bulkModeOpen = !bulkModeOpen;
     if (!bulkModeOpen) {
         bulkSelectedIds.clear();
@@ -501,6 +553,7 @@ function toggleBulkMode() {
     if (selectAll) selectAll.checked = false;
     updateBulkCount();
     renderMemes();
+    requestAnimationFrame(() => window.scrollTo({ top: scrollTop, behavior: 'auto' }));
 }
 
 function handleMemeClick(event, url, id) {
@@ -519,9 +572,17 @@ function toggleBulkSelection(id, checked) {
     } else {
         bulkSelectedIds.delete(id);
     }
-    renderMemes();
+    syncBulkCardSelection(id, checked);
     updateBulkCount();
     updateBulkSelectAllState();
+}
+
+function syncBulkCardSelection(id, checked) {
+    const card = document.querySelector(`.meme-card[data-id="${id}"]`);
+    if (!card) return;
+    card.classList.toggle('bulk-selected', checked);
+    const checkbox = card.querySelector('.bulk-checkbox input[type="checkbox"]');
+    if (checkbox) checkbox.checked = checked;
 }
 
 function updateBulkSelectAllState() {
@@ -559,8 +620,15 @@ function selectAllBulk(checkbox) {
     } else {
         visibleIds.forEach(id => bulkSelectedIds.delete(id));
     }
-    renderMemes();
+    visibleCards.forEach(card => {
+        const id = parseInt(card.dataset.id);
+        const selected = bulkSelectedIds.has(id);
+        card.classList.toggle('bulk-selected', selected);
+        const cb = card.querySelector('.bulk-checkbox input[type="checkbox"]');
+        if (cb) cb.checked = selected;
+    });
     updateBulkCount();
+    updateBulkSelectAllState();
 }
 
 function updateBulkCount() {
@@ -601,10 +669,9 @@ async function downloadBulkZip() {
     let successCount = 0;
     let failCount = 0;
 
-    const fetchPromises = selectedMemes.map(async (meme) => {
+    await mapWithConcurrency(selectedMemes, 6, async (meme) => {
         try {
-            const response = await fetch(meme.url);
-            if (!response.ok) throw new Error('fetch failed');
+            const { response } = await fetchBlobWithRetry(getMemeAssetUrls(meme), 1);
             const blob = await response.blob();
 
             let baseName = sanitizeFileName(meme.title || '菲比');
@@ -624,8 +691,6 @@ async function downloadBulkZip() {
             failCount++;
         }
     });
-
-    await Promise.all(fetchPromises);
 
     if (successCount === 0) {
         showToast('打包失败，请检查网络后重试');

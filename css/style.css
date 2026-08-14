@@ -198,7 +198,7 @@ body::after {
 /* 搜索区域 */
 .hero-section {
     text-align: center;
-    padding: 70px 20px 45px;
+    padding: 76px 20px 42px;
     position: relative;
     z-index: 1;
 }
@@ -293,28 +293,51 @@ body::after {
 
 /* 主内容区域 */
 .main-container {
-    max-width: 1400px;
+    max-width: 1540px;
     margin: 0 auto;
-    padding: 0 25px 50px;
-    display: flex;
-    gap: 35px;
+    padding: 0 22px 52px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 24px;
     position: relative;
     z-index: 1;
 }
 
-/* 左侧边栏 */
-.sidebar-left {
-    width: 240px;
-    flex-shrink: 0;
+/* 侧边信息栏 */
+.sidebar-rail {
+    width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    align-self: start;
+    position: sticky;
+    top: 95px;
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+    padding-right: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(159,122,234,0.45) rgba(255,255,255,0.25);
+}
+
+.sidebar-rail::-webkit-scrollbar {
+    width: 8px;
+}
+
+.sidebar-rail::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.25);
+    border-radius: 999px;
+}
+
+.sidebar-rail::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(183,148,246,0.75), rgba(159,122,234,0.9));
+    border-radius: 999px;
 }
 
 .hot-section {
     background: var(--glass);
-    border-radius: 24px;
-    padding: 24px;
+    border-radius: 22px;
+    padding: 20px;
     box-shadow: var(--shadow);
-    position: sticky;
-    top: 95px;
     backdrop-filter: blur(20px);
     border: 1px solid rgba(255,255,255,0.65);
 }
@@ -379,6 +402,7 @@ body::after {
 /* 中间内容区 */
 .content-main {
     flex: 1;
+    min-width: 0;
 }
 
 /* 分类标签 */
@@ -492,13 +516,13 @@ body::after {
 /* 表情包网格 */
 .meme-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 24px;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 18px;
 }
 
 .meme-card {
     background: rgba(255,255,255,0.92);
-    border-radius: 24px;
+    border-radius: 22px;
     overflow: hidden;
     box-shadow: var(--shadow);
     transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -765,19 +789,11 @@ body::after {
 .meme-tag.recommended { background: linear-gradient(135deg, #7E57C2 0%, #5E35B1 100%); }
 .meme-tag.ai { background: linear-gradient(135deg, #26C6DA 0%, #00ACC1 100%); }
 
-/* 右侧边栏 */
-.sidebar-right {
-    width: 280px;
-    flex-shrink: 0;
-}
-
 .wuthering-section {
     background: var(--glass);
-    border-radius: 24px;
-    padding: 24px;
+    border-radius: 22px;
+    padding: 20px;
     box-shadow: var(--shadow);
-    position: sticky;
-    top: 95px;
     backdrop-filter: blur(20px);
     border: 1px solid rgba(255,255,255,0.65);
 }
@@ -928,9 +944,12 @@ body::after {
 
 /* 响应式 - 手机端优化 */
 @media (max-width: 1200px) {
-    .sidebar-left,
-    .sidebar-right {
+    .sidebar-rail {
         display: none;
+    }
+
+    .main-container {
+        grid-template-columns: minmax(0, 1fr);
     }
 }
 
@@ -1036,6 +1055,7 @@ body::after {
 
     .main-container {
         padding: 0 12px 30px;
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .hero-section {
